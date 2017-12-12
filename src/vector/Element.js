@@ -1041,11 +1041,18 @@ acgraph.vector.Element.prototype.render = function() {
       this.drag(this.draggable_);
   }
 
+  if (!stage.isSuspended() && acgraph.utils.instanceOf(this, acgraph.vector.Layer))
+    this.dispatchEvent(acgraph.vector.Stage.EventType.RENDER_START);
+
   this.beforeRenderInternal();
 
   this.renderInternal();
 
   this.isRendering_ = false;
+
+  if (!stage.isSuspended() && acgraph.utils.instanceOf(this, acgraph.vector.Layer))
+    this.dispatchEvent(acgraph.vector.Stage.EventType.RENDER_FINISH);
+
   return this;
 };
 
