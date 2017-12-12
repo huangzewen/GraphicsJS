@@ -1,5 +1,5 @@
 goog.provide('acgraph.vector.Clip');
-goog.require('acgraph.vector.Ellipse');
+goog.require('acgraph.vector.Circle');
 goog.require('acgraph.vector.ILayer');
 goog.require('acgraph.vector.Path');
 goog.require('acgraph.vector.Rect');
