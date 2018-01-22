@@ -811,10 +811,11 @@ acgraph.vector.Text.prototype.path = function(opt_value) {
     var stageSuspended = !this.getStage() || this.getStage().isSuspended();
     if (!stageSuspended) this.getStage().suspend();
     this.defragmented = false;
-    this.setDirtyState(acgraph.vector.Element.DirtyState.STYLE);
-    this.setDirtyState(acgraph.vector.Element.DirtyState.DATA);
-    this.setDirtyState(acgraph.vector.Element.DirtyState.POSITION);
-    this.setDirtyState(acgraph.vector.Element.DirtyState.CHILDREN);
+    this.setDirtyState(
+        acgraph.vector.Element.DirtyState.STYLE |
+        acgraph.vector.Element.DirtyState.DATA |
+        acgraph.vector.Element.DirtyState.POSITION |
+        acgraph.vector.Element.DirtyState.CHILDREN);
     this.transformAfterChange();
     if (!stageSuspended) this.getStage().resume();
 
@@ -964,6 +965,7 @@ acgraph.vector.Text.prototype.htmlText = function(opt_value) {
  */
 acgraph.vector.Text.prototype.init_ = function() {
   if (this.segments_.length != 0) {
+    goog.disposeAll(this.segments_, this.textLines_);
     this.textLines_ = [];
     this.segments_ = [];
   }
@@ -1053,36 +1055,21 @@ acgraph.vector.Text.prototype.getBoundsWithoutTransform = function() {
 /** @inheritDoc */
 acgraph.vector.Text.prototype.getBoundsWithTransform = function(transform) {
   if (!this.defragmented) this.textDefragmentation();
+  var result;
+  if (transform)
+    result = acgraph.vector.Text.base(this, 'getBoundsWithTransform', transform);
+  else
+    result = this.calcBoundsWithTransform(null);
+  return result;
+};
 
-  if (!transform) {
-    if (this.path()) {
-      if (this.textByPathBoundsCache)
-        return this.textByPathBoundsCache.clone();
-      else
-        return this.textByPathBoundsCache = acgraph.getRenderer().measureTextDom(this);
-    }
-    return this.bounds.clone();
-  }
 
-  var isSelfTransform = transform == this.getSelfTransformation();
-  var isFullTransform = transform == this.getFullTransformation();
-
-  if (this.boundsCache && isSelfTransform)
-    return this.boundsCache.clone();
-  else if (this.absoluteBoundsCache && isFullTransform)
-    return this.absoluteBoundsCache.clone();
-  else {
-    var bounds = this.path() ?
-        this.textByPathBoundsCache ? this.textByPathBoundsCache : acgraph.getRenderer().measureTextDom(this) :
-        this.bounds.clone();
-    /** @type {!goog.math.Rect} */
-    var rect = acgraph.math.getBoundsOfRectWithTransform(bounds, transform);
-    if (isSelfTransform)
-      this.boundsCache = rect.clone();
-    if (isFullTransform)
-      this.absoluteBoundsCache = rect.clone();
-    return rect;
-  }
+/** @inheritDoc */
+acgraph.vector.Text.prototype.calcBoundsWithTransform = function(transform) {
+  var bounds = this.path() ?
+      this.textByPathBoundsCache ? this.textByPathBoundsCache : acgraph.getRenderer().measureTextDom(this) :
+      this.bounds.clone();
+  return acgraph.math.getBoundsOfRectWithTransform(bounds, transform);
 };
 
 
@@ -1309,6 +1296,13 @@ acgraph.vector.Text.prototype.applyTextOverflow_ = function(opt_line) {
   // Copy ellipsis to avoid overwriting this.ellipsis_ because "..." can be ".." (cut) when resize happened.
   var ellipsis = this.ellipsis_;
 
+  var preLastSegment = line.length > 1 && line[line.length - 2];
+  if (preLastSegment && preLastSegment.elipsisAlreadyApplying) {
+    index = goog.array.indexOf(this.segments_, peekSegment) + 1;
+    goog.array.splice(this.segments_, index, this.segments_.length - index);
+    return;
+  }
+
   if (ellipsisBounds.width > this.textWidthLimit) {
     cutPos = this.cutTextSegment_(this.ellipsis_, peekSegment.getStyle(), 0, this.textWidthLimit, ellipsisBounds, true);
     ellipsis = this.ellipsis_.substring(0, cutPos);
@@ -1374,6 +1368,7 @@ acgraph.vector.Text.prototype.applyTextOverflow_ = function(opt_line) {
       var lastSegmentInline = this.createSegment_(cutText, segment.getStyle(), segment_bounds, ellipsisBounds.width);
       lastSegmentInline.x = segment.x;
       lastSegmentInline.y = segment.y;
+      lastSegmentInline.elipsisAlreadyApplying = true;
 
       if (segment_bounds.width + ellipsisBounds.width > this.textWidthLimit) {
         cutPos = this.cutTextSegment_(this.ellipsis_, peekSegment.getStyle(), segment_bounds.width, this.textWidthLimit, ellipsisBounds, true);
@@ -1593,7 +1588,9 @@ acgraph.vector.Text.prototype.finalizeTextLine = function() {
       segment = goog.array.peek(this.currentLine_);
       var segment_bounds = this.getTextBounds(segment.text, segment.getStyle());
 
-      var cutPos = this.cutTextSegment_(segment.text, segment.getStyle(), 0, this.textWidthLimit, segment_bounds, true);
+
+      var cutLimit = this.textWidthLimit - (this.currentLineWidth_ - segment_bounds.width);
+      var cutPos = this.cutTextSegment_(segment.text, segment.getStyle(), 0, cutLimit, segment_bounds, true);
       var cutText = segment.text.substring(0, cutPos);
       segment_bounds = this.getTextBounds(cutText, segment.getStyle());
       segment.text = cutText;
@@ -1911,7 +1908,6 @@ acgraph.vector.Text.prototype.disposeInternal = function() {
   delete this.segments_;
   delete this.textLines_;
   delete this.bounds;
-  delete this.bounds;
   goog.base(this, 'disposeInternal');
 };
 
@@ -1923,6 +1919,7 @@ acgraph.vector.Text.prototype.disposeInternal = function() {
   proto['text'] = proto.text;
   proto['style'] = proto.style;
   proto['htmlText'] = proto.htmlText;
+  proto['path'] = proto.path;
   proto['x'] = proto.x;
   proto['y'] = proto.y;
   proto['fontSize'] = proto.fontSize;

@@ -20,6 +20,7 @@ goog.require('acgraph.vector.UnmanagedLayer');
 goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
+goog.require('goog.dom.fullscreen');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventTarget');
 goog.require('goog.events.Listenable');
@@ -60,6 +61,15 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
 
   this.renderAsync_ = goog.bind(this.renderAsync_, this);
   this.checkSize = goog.bind(this.checkSize, this);
+  var doc = goog.global['document'];
+
+  if (!goog.global['acgraph'].stages)
+    goog.global['acgraph'].stages = {};
+
+  var id = acgraph.utils.IdGenerator.getInstance().identify(this, acgraph.utils.IdGenerator.ElementTypePrefix.STAGE);
+  goog.global['acgraph'].stages[id] = this;
+
+  this.charts = {};
 
   /**
    * Event handler of the stage.
@@ -73,7 +83,9 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
    * @type {!Element}
    * @private
    */
-  this.internalContainer_ = goog.dom.createDom(goog.dom.TagName.DIV, {style: 'position:relative;left:0;top:0;overflow:hidden;'});
+  // this.internalContainer_ = goog.dom.createDom(goog.dom.TagName.DIV, {style: 'position:relative;left:0;top:0;overflow:hidden;'});
+  this.internalContainer_ = doc.createElement(goog.dom.TagName.DIV);
+  goog.style.setStyle(this.internalContainer_, {'position': 'relative', 'left': 0, 'top': 0, 'overflow': 'hidden'});
 
   /**
    * Root DOM element of stage object.
@@ -90,6 +102,8 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
   // Add class for check anychart-ui.css attached. (DVF-1619)
   goog.dom.classlist.add(this.domElement_, 'anychart-ui-support');
   goog.dom.appendChild(this.internalContainer_, this.domElement_);
+  this.domElement_.setAttribute('ac-id', id);
+
 
   /**
    * Array of clips that should be rendered when stage is rendering.
@@ -116,7 +130,7 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
    */
   this.rootLayer_ = new acgraph.vector.Layer();
   this.rootLayer_.setParent(this).render();
-  acgraph.getRenderer().appendChild(this.domElement_, this.rootLayer_.domElement());
+  goog.dom.appendChild(this.domElement_, this.rootLayer_.domElement());
   acgraph.getRenderer().createMeasurement();
 
   this.eventHandler_.listen(this.domElement(), [
@@ -137,7 +151,8 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
 
   this.setWidth_(opt_width || '100%');
   this.setHeight_(opt_height || '100%');
-  this.container_ = goog.dom.getElement(opt_container || null);
+  this.container_ = goog.isString(opt_container) ?
+      doc.getElementById(opt_container) : opt_container;
   if (this.container_)
     this.updateContainer_();
   this.checkSize(true, true);
@@ -406,9 +421,9 @@ acgraph.vector.Stage.prototype.isRendering_ = false;
 acgraph.vector.Stage.prototype.id = function(opt_value) {
   if (goog.isDef(opt_value)) {
     var id = opt_value || '';
-    if (this.id_ !== id) {
+    if (this.id_ != id) {
       this.id_ = id;
-      acgraph.getRenderer().setId(this, this.id_);
+      acgraph.getRenderer().setIdInternal(this.domElement_, this.id_);
     }
     return this;
   }
@@ -765,6 +780,47 @@ acgraph.vector.Stage.prototype.clip = function(opt_value) {
 };
 
 
+/**
+ * Returns anychart charts for this stage.
+ * @return {Object}
+ */
+acgraph.vector.Stage.prototype.getCharts = function() {
+  return this.charts;
+};
+
+
+/**
+ * Getter/setter for full screen status of the stage.
+ * @param {boolean=} opt_value
+ * @return {acgraph.vector.Stage|boolean}
+ */
+acgraph.vector.Stage.prototype.fullScreen = function(opt_value) {
+  var container = /** @type {Element} */(this.getDomWrapper());
+  if (goog.isDef(opt_value)) {
+    if (container && this.isFullScreenAvailable()) {
+      opt_value = !!opt_value;
+      if (this.fullScreen() != opt_value) {
+        if (opt_value)
+          goog.dom.fullscreen.requestFullScreenWithKeys(container);
+        else
+          goog.dom.fullscreen.exitFullScreen();
+      }
+    }
+    return this;
+  }
+  return !!(container && (goog.dom.fullscreen.getFullScreenElement() == container));
+};
+
+
+/**
+ * Tester for the full screen support.
+ * @return {boolean}
+ */
+acgraph.vector.Stage.prototype.isFullScreenAvailable = function() {
+  return goog.dom.fullscreen.isSupported();
+};
+
+
 //endregion
 //region --- Internal methods
 //------------------------------------------------------------------------------
@@ -820,7 +876,11 @@ acgraph.vector.Stage.prototype.checkSize = function(opt_directCall, opt_silent) 
   var isDynamicSize = isDynamicWidth || isDynamicHeight;
   var detachedOrHidden;
   if (isDynamicSize) {
-    var size = this.container_ ? goog.style.getContentBoxSize(this.container_) : new goog.math.Size(NaN, NaN);
+    var size;
+    if (this.fullScreen())
+      size = goog.style.getContentBoxSize(this.internalContainer_);
+    else
+      size = this.container_ ? goog.style.getContentBoxSize(this.container_) : new goog.math.Size(NaN, NaN);
     size.width = Math.max(size.width || 0, 0);
     size.height = Math.max(size.height || 0, 0);
     detachedOrHidden = !size.width && !size.height;
@@ -837,7 +897,7 @@ acgraph.vector.Stage.prototype.checkSize = function(opt_directCall, opt_silent) 
     if (!opt_silent)
       this.dispatchEvent(acgraph.vector.Stage.EventType.STAGE_RESIZE);
   }
-  if (this.container_ && isDynamicSize) {
+  if (this.container_ && isDynamicSize && !goog.global['acgraph']['isNodeJS']) {
     this.checkSizeTimer_ = setTimeout(this.checkSize, this.maxResizeDelay_);
   }
 };
@@ -1147,12 +1207,14 @@ acgraph.vector.Stage.prototype.finishRendering_ = function() {
   var imageLoader = acgraph.getRenderer().getImageLoader();
   var isImageLoading = acgraph.getRenderer().isImageLoading();
   if (imageLoader && isImageLoading) {
-    if (!this.imageLoadingListener_)
-      this.imageLoadingListener_ = goog.events.listenOnce(imageLoader, goog.net.EventType.COMPLETE, function(e) {
-        this.imageLoadingListener_ = null;
+    if (!this.imageLoadingListener_) {
+      this.imageLoadingListener_ = true;
+      goog.events.listenOnce(imageLoader, goog.net.EventType.COMPLETE, function(e) {
+        this.imageLoadingListener_ = false;
         if (!this.isRendering_)
           this.dispatchEvent(acgraph.vector.Stage.EventType.STAGE_RENDERED);
       }, false, this);
+    }
   } else {
     this.dispatchEvent(acgraph.vector.Stage.EventType.STAGE_RENDERED);
   }
@@ -2051,13 +2113,13 @@ acgraph.vector.Stage.prototype.removeAllListeners = function(opt_type) {
  */
 acgraph.vector.Stage.prototype.handleMouseEvent_ = function(e) {
   var event = new acgraph.events.BrowserEvent(e, this);
-  if (event['target'] instanceof acgraph.vector.Element) {
+  if (acgraph.utils.instanceOf(event['target'], acgraph.vector.Element)) {
     var el = /** @type {acgraph.vector.Element} */(event['target']);
     el.dispatchEvent(event);
     var type = event['type'];
     if (event.defaultPrevented) e.preventDefault();
     // we do the binding and unbinding of event only if relatedTarget doesn't belong to the same stage
-    if (!(event['relatedTarget'] instanceof acgraph.vector.Element) ||
+    if (!(acgraph.utils.instanceOf(event['relatedTarget'], acgraph.vector.Element)) ||
         (/** @type {acgraph.vector.Element} */(event['relatedTarget'])).getStage() != this) {
       if (type == acgraph.events.EventType.MOUSEOVER) {
         this.eventHandler_.listen(goog.dom.getDocument(), acgraph.events.EventType.MOUSEMOVE, this.handleMouseEvent_, false);
@@ -2108,15 +2170,25 @@ acgraph.vector.Stage.prototype.dispose = function() {
 acgraph.vector.Stage.prototype.disposeInternal = function() {
   acgraph.vector.Stage.base(this, 'disposeInternal');
 
+  goog.object.forEach(this.charts, function(value, key, arr) {
+    value.remove();
+    delete arr[value];
+  });
+
   goog.dispose(this.eventHandler_);
   this.eventHandler_ = null;
 
-  goog.dispose(this.rootLayer_);
-  this.renderInternal();
-  delete this.rootLayer_;
-
   goog.dispose(this.defs_);
   delete this.defs_;
+
+  goog.dispose(this.rootLayer_);
+  this.renderInternal();
+
+  this.rootLayer_.finalizeDisposing();
+  delete this.rootLayer_;
+
+  var id = acgraph.utils.IdGenerator.getInstance().identify(this, acgraph.utils.IdGenerator.ElementTypePrefix.STAGE);
+  delete goog.global['acgraph'].stages[id];
 
   acgraph.unregister(this);
 
@@ -2124,6 +2196,8 @@ acgraph.vector.Stage.prototype.disposeInternal = function() {
   this.container_ = null;
   delete this.internalContainer_;
   this.domElement_ = null;
+
+  acgraph.getRenderer().disposeMeasurement();
 
   if (this.credits_) {
     this.credits_.dispose();
@@ -2226,5 +2300,8 @@ acgraph.vector.Stage.prototype.disposeInternal = function() {
   proto['removeAllListeners'] = proto.removeAllListeners;
   proto['title'] = proto.title;
   proto['desc'] = proto.desc;
+  proto['getCharts'] = proto.getCharts;
+  proto['fullScreen'] = proto.fullScreen;
+  proto['isFullScreenAvailable'] = proto.isFullScreenAvailable;
 })();
 //endregion
