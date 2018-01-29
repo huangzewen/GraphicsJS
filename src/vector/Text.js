@@ -804,8 +804,10 @@ acgraph.vector.Text.prototype.selectable = function(opt_value) {
  */
 acgraph.vector.Text.prototype.path = function(opt_value) {
   if (goog.isDef(opt_value)) {
+    if (goog.isNull(opt_value) && this.path_)
+      this.path_.parent(null);
     this.path_ = opt_value;
-    if (this.getStage())
+    if (this.getStage() && this.path_)
       this.path_.parent(this.getStage().getDefs());
 
     var stageSuspended = !this.getStage() || this.getStage().isSuspended();
