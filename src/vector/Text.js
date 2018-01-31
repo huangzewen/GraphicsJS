@@ -1659,11 +1659,11 @@ acgraph.vector.Text.prototype.calculateY = function() {
     if (this.style_['vAlign']) {
       var firstSegment = this.segments_[0];
       if (this.style_['vAlign'] == acgraph.vector.Text.VAlign.MIDDLE)
-        firstSegment.dy += firstSegment.baseLine - this.realHeight / 2;
+        firstSegment.dy = firstSegment.baseLine - this.realHeight / 2;
       else if (this.style_['vAlign'] == acgraph.vector.Text.VAlign.BOTTOM)
-        firstSegment.dy += firstSegment.baseLine - this.realHeight;
+        firstSegment.dy = firstSegment.baseLine - this.realHeight;
       else if (this.style_['vAlign'] == acgraph.vector.Text.VAlign.TOP)
-        firstSegment.dy += firstSegment.baseLine;
+        firstSegment.dy = firstSegment.baseLine;
     }
   } else {
     this.calcY = this.y_ + (this.segments_.length == 0 ? 0 : this.segments_[0].baseLine);
