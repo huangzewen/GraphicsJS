@@ -1,8 +1,14 @@
 goog.provide('acgraph.vector.Clip');
+goog.require('acgraph.vector.Circle');
+goog.require('acgraph.vector.Ellipse');
 goog.require('acgraph.vector.ILayer');
+goog.require('acgraph.vector.Path');
+goog.require('acgraph.vector.Rect');
 goog.require('goog.Disposable');
 goog.require('goog.array');
 goog.require('goog.math.Rect');
+
+
 
 
 
