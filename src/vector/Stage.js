@@ -142,10 +142,10 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
     goog.events.EventType.TOUCHSTART,
     goog.events.EventType.TOUCHEND,
     goog.events.EventType.TOUCHCANCEL,
-    goog.events.EventType.MSPOINTERDOWN,
-    goog.events.EventType.MSPOINTERUP,
-    goog.events.EventType.POINTERDOWN,
-    goog.events.EventType.POINTERUP,
+    // goog.events.EventType.MSPOINTERDOWN,
+    // goog.events.EventType.MSPOINTERUP,
+    // goog.events.EventType.POINTERDOWN,
+    // goog.events.EventType.POINTERUP,
     goog.events.EventType.CONTEXTMENU
   ], this.handleMouseEvent_, false);
 
@@ -2135,10 +2135,10 @@ acgraph.vector.Stage.prototype.handleMouseEvent_ = function(e) {
         this.eventHandler_.unlisten(goog.dom.getDocument(), acgraph.events.EventType.MOUSEUP, this.handleMouseEvent_, false);
         break;
       case acgraph.events.EventType.TOUCHSTART:
-        this.eventHandler_.listen(goog.dom.getDocument(), acgraph.events.EventType.TOUCHMOVE, this.handleMouseEvent_, false);
+        this.eventHandler_.listen(goog.dom.getDocument(), acgraph.events.EventType.TOUCHMOVE, this.handleMouseEvent_, {capture: false, passive: false});
         break;
       case acgraph.events.EventType.TOUCHEND:
-        this.eventHandler_.unlisten(goog.dom.getDocument(), acgraph.events.EventType.TOUCHMOVE, this.handleMouseEvent_, false);
+        this.eventHandler_.unlisten(goog.dom.getDocument(), acgraph.events.EventType.TOUCHMOVE, this.handleMouseEvent_, {capture: false, passive: false});
         break;
       case goog.events.EventType.POINTERDOWN:
         this.eventHandler_.listen(goog.dom.getDocument(), goog.events.EventType.POINTERMOVE, this.handleMouseEvent_, false);
