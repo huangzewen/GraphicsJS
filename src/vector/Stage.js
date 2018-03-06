@@ -142,10 +142,10 @@ acgraph.vector.Stage = function(opt_container, opt_width, opt_height) {
     goog.events.EventType.TOUCHSTART,
     goog.events.EventType.TOUCHEND,
     goog.events.EventType.TOUCHCANCEL,
-    // goog.events.EventType.MSPOINTERDOWN,
-    // goog.events.EventType.MSPOINTERUP,
-    // goog.events.EventType.POINTERDOWN,
-    // goog.events.EventType.POINTERUP,
+    goog.events.EventType.MSPOINTERDOWN,
+    goog.events.EventType.MSPOINTERUP,
+    goog.events.EventType.POINTERDOWN,
+    goog.events.EventType.POINTERUP,
     goog.events.EventType.CONTEXTMENU
   ], this.handleMouseEvent_, false);
 
